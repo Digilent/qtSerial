@@ -37,12 +37,7 @@ public:
     bool isOpen();
     bool setBaudRate(int baudRate);
 
-
-
-
-
-
-    static QList<QSerialPortInfo> refreshSerialPortInfo();
+    static QList<QSerialPortInfo> getSerialPortInfo();
     static void delay(int ms);
 
 private:

@@ -137,8 +137,8 @@ void Serial::close() {
     this->port.close();
 }
 
-//Refresh the system serial port info.
-QList<QSerialPortInfo> Serial::refreshSerialPortInfo() {
+//Refresh the system serial port info and return it.
+QList<QSerialPortInfo> Serial::getSerialPortInfo() {
     return QSerialPortInfo::availablePorts();
 }
 
