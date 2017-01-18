@@ -12,16 +12,30 @@ Serial::Serial()
 bool Serial::open(QString portName, qint32 baudRate){
     //QSerialPort port;
     this->port.setPortName(portName);
-    this->port.setBaudRate(baudRate);
-    return this->port.open(QIODevice::ReadWrite);
+    //Set the baud rate to 9600 before opening to grease the wheels for Mac
+    this->setBaudRate(9600);
+
+    if(this->port.open(QIODevice::ReadWrite)) {
+        //Update to the actual desired baud rate
+        this->port.setBaudRate(baudRate);
+        return true;
+    } else {
+        return false;
+    }
 }
+
 
 //Open the specified port with the specified baud rate.  Returns true if successful, false otherwise.
 bool Serial::open(QSerialPortInfo portInfo, qint32 baudRate){
     //QSerialPort port;
     this->port.setPort(portInfo);
-    this->port.setBaudRate(baudRate);
+
+    //Set the baud rate to 9600 before opening to grease the wheels for Mac
+    this->setBaudRate(9600);
+
     if(this->port.open(QIODevice::ReadWrite)) {
+        //Update to the actual desired baud rate
+        this->port.setBaudRate(baudRate);
         return true;
     } else {
         qDebug() << "Failed to open" << portInfo.portName() << " : " << this->port.error();
@@ -64,6 +78,30 @@ bool Serial::write(QByteArray data) {
         }
         return false;
     }
+}
+
+//Write the specified data to the serial port.  Read response data until the number of ms specified in timeout ellaspes between response bytes, then return response data.
+QByteArray Serial::writeRead(QByteArray data, int timeout){
+  return writeRead(data, timeout, timeout);
+}
+
+//Write the specified data to the serial port.  Delay up to the specified delay ms for the first response byte,
+//then read response data until the number of ms specified in timeout ellaspes between response bytes, then return response data.
+QByteArray Serial::writeRead(QByteArray data, int delay, int timeout) {
+    QByteArray resp;
+
+    this->write(data);
+    if(this->port.waitForReadyRead(delay)){
+       //Read first incoming data
+        resp.append(this->port.readAll());
+
+        //Continue reading until timout expires
+        while(this->port.waitForReadyRead(timeout)) {
+            resp.append(this->port.readAll());
+        }
+        return resp;
+    }
+    return resp;
 }
 
 
@@ -134,6 +172,8 @@ QByteArray Serial::read() {
 
 //Closes the serial port.
 void Serial::close() {
+    //Set the baud rate back to 9600 before closing to grease the wheels for Mac
+    this->setBaudRate(9600);
     this->port.close();
 }
 

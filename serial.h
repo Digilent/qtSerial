@@ -21,6 +21,9 @@ public:
     bool write(const char *data, int numBytes);
     bool write(QByteArray data);
 
+    QByteArray writeRead(QByteArray data, int timeout);
+    QByteArray writeRead(QByteArray data, int delay, int timeout);
+
     //Read
     QByteArray read(qint64 numBytes);
     QByteArray read();
