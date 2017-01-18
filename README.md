@@ -1,0 +1,2 @@
+# qtSerial
+Qt Serial Library
