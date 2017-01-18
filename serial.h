@@ -13,20 +13,33 @@ class Serial
 public:
     Serial();
 
+    //Open
     bool open(QString portName, qint32 baudRate);
     bool open(QSerialPortInfo portInfo, qint32 baudRate);
-    bool isOpen();
-    bool assertReset();
+
+    //Write
     bool write(const char *data, int numBytes);
     bool write(QByteArray data);
-    int bytesAvailable();
-    bool waitForBytesAvailable(int numBytes, int timeout);
-    int getBaudRate();
-    QString getName();
-    bool setBaudRate(int baudRate);
+
+    //Read
     QByteArray read(qint64 numBytes);
     QByteArray read();
+    int bytesAvailable();
+    bool waitForBytesAvailable(int numBytes, int timeout);
+
+    //Close
     void close();
+
+    //Utility
+    bool assertReset();
+    int getBaudRate();
+    QString getName();
+    bool isOpen();
+    bool setBaudRate(int baudRate);
+
+
+
+
 
 
     static QList<QSerialPortInfo> refreshSerialPortInfo();
