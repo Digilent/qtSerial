@@ -104,7 +104,72 @@ QByteArray Serial::writeRead(QByteArray data, int delay, int timeout) {
     return resp;
 }
 
+//Write the specified data to the serial port.  Wait up to delay ms for the first byte to be returned.  Return an empty array if delay expires.
+//While data is being returned wait up to timeout ms for the inoming byte.  Return data if timeout expires.
+//Return data immediatly if a full playload or JSON or OSJB is returned
+QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
+    QByteArray resp;
 
+    //Clear incoming buffer before writing new command
+    this->flushInputBuffer();
+
+    //Write Command
+    this->write(data);
+
+    //Wait for resposne to start
+    if(this->port.waitForReadyRead(delay)){
+
+       //Read first incoming data
+        resp.append(this->port.readAll());
+
+        //Checking if incoming data is a JSON object, OSJB, or other.
+        if(resp[0] == '{') {
+            //---------- JSON ----------
+            int openBracketCount = 0;
+
+            //Process initial data
+            for(int i=0; i< resp.length(); i++) {
+                if(resp[i] == '{') {
+                    openBracketCount++;
+                } else if(resp[i] == '}') {
+                    openBracketCount--;
+                }
+                if(openBracketCount <= 0) {
+                    return resp;
+                }
+            }
+
+            //Continue reading until timout expires
+            while(this->port.waitForReadyRead(timeout)) {
+                while(this->port.bytesAvailable() > 0) {
+                    char respByte = this->port.read(1)[0];
+                    resp.append(respByte);
+
+                    if(respByte == '{') {
+                        openBracketCount++;
+                    } else if(respByte == '}') {
+                        openBracketCount--;
+                    }
+                    if(openBracketCount <= 0) {
+                        return resp;
+                    }
+                }
+            }
+        }
+        //else if() {
+            //---------- OSJB ----------
+        //}
+        else {
+            //---------- UNKNOWN ----------
+            //Continue reading until timout expires
+            while(this->port.waitForReadyRead(timeout)) {
+                resp.append(this->port.readAll());
+            }
+            return resp;
+        }
+    }
+    return resp;
+}
 
 //Returns the number of bytes available at the port or -1 if the port is not open
 int Serial::bytesAvailable() {    
@@ -227,6 +292,13 @@ bool Serial::setBaudRate(int baudRate) {
 //Return the current port name;
 QString Serial::getName(){
     return this->port.portName();
+}
+
+//Clear all bytes from the UART input buffer and return the number of bytes returned
+int Serial::flushInputBuffer(){
+    //Byte are not available until waitForReadyRead() is called
+    this->port.waitForReadyRead(1);
+    return this->port.readAll().length();
 }
 
 

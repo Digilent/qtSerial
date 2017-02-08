@@ -23,6 +23,7 @@ public:
 
     QByteArray writeRead(QByteArray data, int timeout);
     QByteArray writeRead(QByteArray data, int delay, int timeout);
+    QByteArray fastWriteRead(QByteArray data, int delay, int timeout);
 
     //Read
     QByteArray read(qint64 numBytes);
@@ -39,6 +40,7 @@ public:
     QString getName();
     bool isOpen();
     bool setBaudRate(int baudRate);
+    int flushInputBuffer();
 
     static QList<QSerialPortInfo> getSerialPortInfo();
     static void delay(int ms);
