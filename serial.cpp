@@ -2,61 +2,69 @@
 
 #include <QCoreApplication>
 #include <QTime>
+#include <QThread>
 
-Serial::Serial()
+Serial::Serial(QObject *parent) : QObject(parent)
 {
+    qDebug() << "Serial::Serial()" << "thread: " << QThread::currentThread();
+    this->port = new QSerialPort(this);
+}
 
+Serial::~Serial() {
+    qDebug() << "Serial::~Serial() - Begin" << "thread: " << QThread::currentThread();
+    close();
+    delete this->port;
+    qDebug() << "Serial::~Serial() - End" << "thread: " << QThread::currentThread();
 }
 
 //Open the specified port with the specified baud rate.  Returns true if successful, false otherwise.
 bool Serial::open(QString portName, qint32 baudRate){
     //QSerialPort port;
-    this->port.setPortName(portName);
+    this->port->setPortName(portName);
     //Set the baud rate to 9600 before opening to grease the wheels for Mac
     this->setBaudRate(9600);
 
-    if(this->port.open(QIODevice::ReadWrite)) {
+    if(this->port->open(QIODevice::ReadWrite)) {
         //Update to the actual desired baud rate
-        this->port.setBaudRate(baudRate);
+        this->port->setBaudRate(baudRate);
         return true;
     } else {
         return false;
     }
 }
 
-
 //Open the specified port with the specified baud rate.  Returns true if successful, false otherwise.
 bool Serial::open(QSerialPortInfo portInfo, qint32 baudRate){
     //QSerialPort port;
-    this->port.setPort(portInfo);
+    this->port->setPort(portInfo);
 
     //Set the baud rate to 9600 before opening to grease the wheels for Mac
     this->setBaudRate(9600);
 
-    if(this->port.open(QIODevice::ReadWrite)) {
+    if(this->port->open(QIODevice::ReadWrite)) {
         //Update to the actual desired baud rate
-        this->port.setBaudRate(baudRate);
+        this->port->setBaudRate(baudRate);
         return true;
     } else {
-        qDebug() << "Failed to open" << portInfo.portName() << " : " << this->port.error();
+        qDebug() << "Failed to open" << portInfo.portName() << " : " << this->port->error();
         return false;
     }
 }
 
 //Returns true if the serial port is open
 bool Serial::isOpen() {
-    return this->port.isOpen();
+    return this->port->isOpen();
 }
 
 //Write data to the port.  Returns true if numBytes were successfully written to the port, false otherwise.
 bool Serial::write(const char *data, int numBytes) {
-    if(!this->port.isOpen())
+    if(!this->port->isOpen())
     {
         return false;
     }
     else
     {
-        if(this->port.write(data, numBytes) != numBytes)
+        if(this->port->write(data, numBytes) != numBytes)
         {
             return false;
         }
@@ -66,13 +74,13 @@ bool Serial::write(const char *data, int numBytes) {
 
 //Write data to the port.  Returns true if all bytes were successfully written, false otherwise.
 bool Serial::write(QByteArray data) {
-    if(!this->port.isOpen())
+    if(!this->port->isOpen())
     {
         return false;
     }
     else
     {
-        if(this->port.write(data) == data.length())
+        if(this->port->write(data) == data.length())
         {
             return true;
         }
@@ -91,13 +99,13 @@ QByteArray Serial::writeRead(QByteArray data, int delay, int timeout) {
     QByteArray resp;
 
     this->write(data);
-    if(this->port.waitForReadyRead(delay)){
+    if(this->port->waitForReadyRead(delay)){
        //Read first incoming data
-        resp.append(this->port.readAll());
+        resp.append(this->port->readAll());
 
         //Continue reading until timout expires
-        while(this->port.waitForReadyRead(timeout)) {
-            resp.append(this->port.readAll());
+        while(this->port->waitForReadyRead(timeout)) {
+            resp.append(this->port->readAll());
         }
         return resp;
     }
@@ -108,6 +116,8 @@ QByteArray Serial::writeRead(QByteArray data, int delay, int timeout) {
 //While data is being returned wait up to timeout ms for the inoming byte.  Return data if timeout expires.
 //Return data immediatly if a full playload or JSON or OSJB is returned
 QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
+    qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Send:" << data;
+
     QByteArray resp;
 
     //Clear incoming buffer before writing new command
@@ -117,10 +127,10 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
     this->write(data);
 
     //Wait for resposne to start
-    if(this->port.waitForReadyRead(delay)){
+    if(this->port->waitForReadyRead(delay)){
 
        //Read first incoming data
-        resp.append(this->port.readAll());
+        resp.append(this->port->readAll());
 
         //Checking if incoming data is a JSON object, OSJB, or other.
         if(resp[0] == '{') {
@@ -135,14 +145,16 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
                     openBracketCount--;
                 }
                 if(openBracketCount <= 0) {
+                    qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Response:" << resp;
+                    emit fastWriteReadResponse(resp);
                     return resp;
                 }
             }
 
-            //Continue reading until timout expires
-            while(this->port.waitForReadyRead(timeout)) {
-                while(this->port.bytesAvailable() > 0) {
-                    char respByte = this->port.read(1)[0];
+            //Continue reading until timeout expires
+            while(this->port->waitForReadyRead(timeout)) {
+                while(this->port->bytesAvailable() > 0) {
+                    char respByte = this->port->read(1)[0];
                     resp.append(respByte);
 
                     if(respByte == '{') {
@@ -151,6 +163,8 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
                         openBracketCount--;
                     }
                     if(openBracketCount <= 0) {
+                        qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Response:" << resp;
+                        emit fastWriteReadResponse(resp);
                         return resp;
                     }
                 }
@@ -162,24 +176,28 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
         else {
             //---------- UNKNOWN ----------
             //Continue reading until timout expires
-            while(this->port.waitForReadyRead(timeout)) {
-                resp.append(this->port.readAll());
+            while(this->port->waitForReadyRead(timeout)) {
+                resp.append(this->port->readAll());
             }
+            qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Response:" << resp;
+            emit fastWriteReadResponse(resp);
             return resp;
         }
     }
+    qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Timeout - Response:" << resp;
+    emit fastWriteReadResponse(resp);
     return resp;
 }
 
 //Returns the number of bytes available at the port or -1 if the port is not open
 int Serial::bytesAvailable() {    
-    this->port.waitForReadyRead(0);
-    if(!this->port.isOpen())
+    this->port->waitForReadyRead(0);
+    if(!this->port->isOpen())
     {
         return -1;
     }
     else{
-        return this->port.bytesAvailable();
+        return this->port->bytesAvailable();
     }
 }
 
@@ -221,25 +239,29 @@ bool Serial::read(char* rxBuffer, int numBytes) {
 
 //Read the specified number of bytes from the serial buffer.  Data is returned as a byte array.
 QByteArray Serial::read(qint64 numBytes) {
-    this->port.waitForReadyRead(0);
-    return this->port.read(numBytes);
+    this->port->waitForReadyRead(0);
+    return this->port->read(numBytes);
 }
 
 //Read all available bytes from the serial buffer.  Data is returned as a byte array.
 QByteArray Serial::read() {
-    if(!this->port.isOpen()) {
+    if(!this->port->isOpen()) {
         return NULL;
     }
-    this->port.waitForReadyRead(0);
-    return this->port.readAll();
+    this->port->waitForReadyRead(0);
+    return this->port->readAll();
 }
 
 
-//Closes the serial port.
+//Close the serial port.
 void Serial::close() {
+    qDebug() << "Serial::close()" << "thread: " << QThread::currentThread();
+
     //Set the baud rate back to 9600 before closing to grease the wheels for Mac
     this->setBaudRate(9600);
-    this->port.close();
+    if(port->isOpen()) {
+        this->port->close();
+    }
 }
 
 //Refresh the system serial port info and return it.
@@ -250,13 +272,13 @@ QList<QSerialPortInfo> Serial::getSerialPortInfo() {
 //Assert a reset by setting RTS and DTR high for 100ms, DTR low for 50ms then DTR high for 100ms.  Returns true on success false otherwise.
 bool Serial::assertReset() {
     //Set RTS and DTR
-    if(this->port.setRequestToSend(true) && this->port.setDataTerminalReady(true)){
+    if(this->port->setRequestToSend(true) && this->port->setDataTerminalReady(true)){
         delay(100);
-        if(!this->port.setDataTerminalReady(false)) {
+        if(!this->port->setDataTerminalReady(false)) {
             return false;
         } else {
             delay(50);
-            if(!this->port.setDataTerminalReady(true)) {
+            if(!this->port->setDataTerminalReady(true)) {
                 return false;
             } else {
                 delay(100);
@@ -281,24 +303,38 @@ void Serial::delay(int ms){
 
 
 int Serial::getBaudRate() {
-    return this->port.baudRate();
+    return this->port->baudRate();
 }
 
 //Set the serial port baud rate.  Returns true on success, false otherwise.
 bool Serial::setBaudRate(int baudRate) {
-    return this->port.setBaudRate(baudRate);
+    return this->port->setBaudRate(baudRate);
 }
 
 //Return the current port name;
 QString Serial::getName(){
-    return this->port.portName();
+    return this->port->portName();
 }
 
 //Clear all bytes from the UART input buffer and return the number of bytes returned
 int Serial::flushInputBuffer(){
     //Byte are not available until waitForReadyRead() is called
-    this->port.waitForReadyRead(1);
-    return this->port.readAll().length();
+    if(this->port != 0)    {
+       this->port->waitForReadyRead(1);
+       return this->port->readAll().length();
+    }else {
+        return 0;
+    }
+}
+
+//Soft reset the serial port.  This funciton closes and reopens the serial port with the same settings.
+bool Serial::softReset(){
+    QString name = this->getName();
+    int baudRate = this->getBaudRate();
+    this->close();
+    bool success = this->open(name, baudRate);
+    emit softResetResponse(success);
+    return success;
 }
 
 

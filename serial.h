@@ -3,15 +3,18 @@
 
 #include <QDebug>
 #include <QList>
+#include <QObject>
 #include <QSerialPort>
 #include <QSerialPortInfo>
 #include <QString>
 
-class Serial
+class Serial : public QObject
 {
+    Q_OBJECT
 
 public:
-    Serial();
+    explicit Serial(QObject *parent = 0);
+    ~Serial();
 
     //Open
     bool open(QString portName, qint32 baudRate);
@@ -23,7 +26,6 @@ public:
 
     QByteArray writeRead(QByteArray data, int timeout);
     QByteArray writeRead(QByteArray data, int delay, int timeout);
-    QByteArray fastWriteRead(QByteArray data, int delay, int timeout);
 
     //Read
     QByteArray read(qint64 numBytes);
@@ -45,8 +47,17 @@ public:
     static QList<QSerialPortInfo> getSerialPortInfo();
     static void delay(int ms);
 
+signals:
+    fastWriteReadResponse(QByteArray response);
+    softResetResponse(bool status);
+
+public slots:
+    QByteArray fastWriteRead(QByteArray data, int delay, int timeout);
+    bool softReset();
+
+
 private:
-    QSerialPort port;
+    QSerialPort* port;
 
 };
 
