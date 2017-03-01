@@ -48,8 +48,8 @@ public:
     static void delay(int ms);
 
 signals:
-    fastWriteReadResponse(QByteArray response);
-    softResetResponse(bool status);
+    QByteArray fastWriteReadResponse(QByteArray response);
+    bool softResetResponse(bool status);
 
 public slots:
     QByteArray fastWriteRead(QByteArray data, int delay, int timeout);
