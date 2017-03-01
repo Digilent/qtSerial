@@ -59,6 +59,7 @@ public slots:
 private:
     QSerialPort* port;
 
+
 };
 
 #endif // SERIAL_H
