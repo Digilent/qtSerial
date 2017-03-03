@@ -199,7 +199,7 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
             bool waitForMoreBytes = true;
             while(waitForMoreBytes) {
 
-                //this->port->waitForReadyRead(0);
+                this->port->waitForReadyRead(0);
                 QByteArray newData = this->port->readAll();
 
                 resp.append(newData);
@@ -230,13 +230,16 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
 
 //Returns the number of bytes available at the port or -1 if the port is not open
 int Serial::bytesAvailable() {
-    qDebug() << "Serial::bytesAvialabe()";
+    QTime stopWatch;
     if(!this->port->isOpen())
     {
         return -1;
     }
     else{
-        this->port->waitForReadyRead(1);
+        stopWatch.restart();
+        this->port->waitForReadyRead(0);
+        int numBytes = this->port->bytesAvailable();
+        //qDebug() << "Took" << stopWatch.elapsed() << "ms" << "and found" << numBytes << "bytes";
         return this->port->bytesAvailable();
     }
 }
@@ -279,7 +282,7 @@ bool Serial::read(char* rxBuffer, int numBytes) {
 
 //Read the specified number of bytes from the serial buffer.  Data is returned as a byte array.
 QByteArray Serial::read(qint64 numBytes) {
-    this->port->waitForReadyRead(0);
+    this->port->waitForReadyRead(0);    //This is required on Mac for bytes to be readable.  Do not change.
     return this->port->read(numBytes);
 }
 
@@ -288,7 +291,12 @@ QByteArray Serial::read() {
     if(!this->port->isOpen()) {
         return NULL;
     }
-    this->port->waitForReadyRead(0);
+    QTime stopWatch;
+    stopWatch.restart();
+    this->port->waitForReadyRead(0);    //This is required on Mac for bytes to be readable.  Do not change.
+    if(stopWatch.elapsed() > 2){
+        qDebug() << "Read took took long" << stopWatch.elapsed();
+    }
     return this->port->readAll();
 }
 
