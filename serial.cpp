@@ -115,26 +115,36 @@ QByteArray Serial::writeRead(QByteArray data, int delay, int timeout) {
 //Write the specified data to the serial port.  Wait up to delay ms for the first byte to be returned.  Return an empty array if delay expires.
 //While data is being returned wait up to timeout ms for the inoming byte.  Return data if timeout expires.
 //Return data immediatly if a full playload or JSON or OSJB is returned
-QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
-    qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Send:" << data;
+QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {    
+    QMutex mutex;
+    mutex.lock();
 
+    qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Send:" << data;
     QByteArray resp;
+    QTime stopWatch;
+    stopWatch.start();
 
     //Clear incoming buffer before writing new command
-    this->flushInputBuffer();
+    qDebug() << "Flushed " << this->port->readAll().length() << "in" << stopWatch.elapsed() << "ms";
 
     //Write Command
     this->write(data);
 
     //Wait for resposne to start
+    stopWatch.restart();
     if(this->port->waitForReadyRead(delay)){
-
+        qDebug() << "Waited" << stopWatch.elapsed() << "ms for first byte";
        //Read first incoming data
+        stopWatch.restart();
         resp.append(this->port->readAll());
+         qDebug() << "Took" << stopWatch.elapsed() << "ms to read all data";
 
         //Checking if incoming data is a JSON object, OSJB, or other.
+         stopWatch.restart();
+
         if(resp[0] == '{') {
             //---------- JSON ----------
+            qDebug() <<"Incoming Data Looks Like JSON";
             int openBracketCount = 0;
 
             //Process initial data
@@ -145,14 +155,18 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
                     openBracketCount--;
                 }
                 if(openBracketCount <= 0) {
-                    qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Response:" << resp;
+                    qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Found the end in " << stopWatch.elapsed() << "- Response:" << resp;
                     emit fastWriteReadResponse(resp);
+                    mutex.unlock();
                     return resp;
                 }
             }
 
             //Continue reading until timeout expires
+            stopWatch.restart();
+
             while(this->port->waitForReadyRead(timeout)) {
+                qDebug() << "waiting for timeout for" << stopWatch.elapsed() << "ms";
                 while(this->port->bytesAvailable() > 0) {
                     char respByte = this->port->read(1)[0];
                     resp.append(respByte);
@@ -165,6 +179,7 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
                     if(openBracketCount <= 0) {
                         qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Response:" << resp;
                         emit fastWriteReadResponse(resp);
+                        mutex.unlock();
                         return resp;
                     }
                 }
@@ -176,27 +191,52 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
         else {
             //---------- UNKNOWN ----------
             //Continue reading until timout expires
-            while(this->port->waitForReadyRead(timeout)) {
+            qDebug() <<  "unknown response type";
+                     stopWatch.restart();
+            //while(this->port->waitForReadyRead(timeout)) {
+            int previousReadCount = -1;
+            bool waitForMoreBytes = true;
+            while(waitForMoreBytes) {
+            //while(this->port->waitForReadyRead(timeout)) {
+
+                this->port->waitForReadyRead(0);
+                QByteArray newData = this->port->readAll();
+
+                resp.append(newData);
+
+                if(newData.length() == 0) {
+                    if(previousReadCount == 0) {
+                        waitForMoreBytes = false;
+                    } else {
+                        this->delay(timeout);
+                    }
+                    previousReadCount = newData.length();
+                }
+                    qDebug() << "got" << newData.length() << "more byte after " << stopWatch.elapsed() << "ms";
+                stopWatch.restart();
                 resp.append(this->port->readAll());
             }
-            qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Response:" << resp;
+            qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Unknown response read in" << stopWatch.elapsed() << "ms" << "Response:" << resp;
             emit fastWriteReadResponse(resp);
+            mutex.unlock();
             return resp;
         }
     }
     qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Timeout - Response:" << resp;
     emit fastWriteReadResponse(resp);
+    mutex.unlock();
     return resp;
 }
 
 //Returns the number of bytes available at the port or -1 if the port is not open
-int Serial::bytesAvailable() {    
-    this->port->waitForReadyRead(0);
+int Serial::bytesAvailable() {
+    qDebug() << "Serial::bytesAvialabe()";
     if(!this->port->isOpen())
     {
         return -1;
     }
     else{
+        this->port->waitForReadyRead(1);
         return this->port->bytesAvailable();
     }
 }
@@ -251,7 +291,6 @@ QByteArray Serial::read() {
     this->port->waitForReadyRead(0);
     return this->port->readAll();
 }
-
 
 //Close the serial port.
 void Serial::close() {
@@ -318,10 +357,20 @@ QString Serial::getName(){
 
 //Clear all bytes from the UART input buffer and return the number of bytes returned
 int Serial::flushInputBuffer(){
+ qDebug() << "Serial::flushInputBuffer() Begin";
     //Byte are not available until waitForReadyRead() is called
     if(this->port != 0)    {
+
+        QTime stopWatch;
+        stopWatch.start();
        this->port->waitForReadyRead(1);
-       return this->port->readAll().length();
+        qDebug() << "waitForReadyRead() took " << stopWatch.elapsed();
+        stopWatch.restart();
+       int flushCount = this->port->readAll().length();
+        qDebug() << "readAll() took " << stopWatch.elapsed();
+
+       qDebug() << "Serial::flushInputBuffer()" << flushCount;
+       return flushCount;
     }else {
         return 0;
     }
@@ -336,5 +385,3 @@ bool Serial::softReset(){
     emit softResetResponse(success);
     return success;
 }
-
-
