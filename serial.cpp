@@ -1,6 +1,7 @@
 #include "serial.h"
 
 #include <QCoreApplication>
+#include <QMutex>
 #include <QTime>
 #include <QThread>
 
@@ -191,15 +192,14 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
         else {
             //---------- UNKNOWN ----------
             //Continue reading until timout expires
-            qDebug() <<  "unknown response type";
+            qDebug() <<  "Unknown response type (probably chunked)";
                      stopWatch.restart();
             //while(this->port->waitForReadyRead(timeout)) {
             int previousReadCount = -1;
             bool waitForMoreBytes = true;
             while(waitForMoreBytes) {
-            //while(this->port->waitForReadyRead(timeout)) {
 
-                this->port->waitForReadyRead(0);
+                //this->port->waitForReadyRead(0);
                 QByteArray newData = this->port->readAll();
 
                 resp.append(newData);
@@ -212,7 +212,7 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
                     }
                     previousReadCount = newData.length();
                 }
-                    qDebug() << "got" << newData.length() << "more byte after " << stopWatch.elapsed() << "ms";
+                    qDebug() << "Read" << newData.length() << "more byte after" << stopWatch.elapsed() << "ms";
                 stopWatch.restart();
                 resp.append(this->port->readAll());
             }
