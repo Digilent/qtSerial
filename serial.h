@@ -31,7 +31,7 @@ public:
     QByteArray read(qint64 numBytes);
     QByteArray read();
     int bytesAvailable();
-    bool waitForBytesAvailable(int numBytes, int timeout);
+    bool waitForBytesAvailable(int numBytes, int timeout);    
 
     //Close
     void close();
@@ -43,6 +43,7 @@ public:
     bool isOpen();
     bool setBaudRate(int baudRate);
     int flushInputBuffer();
+    int getChunkSize(QString data);
 
     static QList<QSerialPortInfo> getSerialPortInfo();
     static void delay(int ms);
