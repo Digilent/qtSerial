@@ -113,10 +113,11 @@ QByteArray Serial::writeRead(QByteArray data, int delay, int timeout) {
     return resp;
 }
 
+
 //Write the specified data to the serial port.  Wait up to delay ms for the first byte to be returned.  Return an empty array if delay expires.
 //While data is being returned wait up to timeout ms for the inoming byte.  Return data if timeout expires.
-//Return data immediatly if a full playload or JSON or OSJB is returned
-QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {    
+//Return data immediatly if a complete JSON object or complete chunked transfer is detected.
+QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
     QMutex mutex;
     mutex.lock();
 
@@ -126,6 +127,7 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
     stopWatch.start();
 
     //Clear incoming buffer before writing new command
+    this->port->waitForReadyRead(1);
     qDebug() << "Flushed " << this->port->readAll().length() << "in" << stopWatch.elapsed() << "ms";
 
     //Write Command
@@ -185,80 +187,46 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
                     }
                 }
             }
-        }
-        else if(getChunkSize(resp) > 0) {
-            //---------- Chunked ----------
-            qDebug() << "Reading Chunked Data";
-            int retryCount = timeout;
+        }        
+        else
+        {
+            //---------- UNKNOWN ----------
+            //Continue reading until timout expires
+            qDebug() <<  "Unknown response type starting with" << resp;
+            stopWatch.restart();
+
+            int previousReadCount = -1;
             bool waitForMoreBytes = true;
-            while(retryCount > 0) {
-
-                //Read more data if it exits
-
+            while(waitForMoreBytes) {
                 //This is required on Mac for bytes to be readable.  Do not change.
                 #if defined(TARGET_OS_MAC)
                     this->port->waitForReadyRead(0);
                 #else
                     this->port->waitForReadyRead(1);
                 #endif
-
                 QByteArray newData = this->port->readAll();
+                qDebug() << "Read" << newData.length() << "more byte after" << stopWatch.elapsed() << "ms";
 
                 resp.append(newData);
 
-                int endIndex = resp.indexOf("\r\n0\r\n\r\n");
-                if(resp.indexOf("\r\n0\r\n\r\n") >=0){
-                    qDebug() << "Found end of chunked transfer after" << stopWatch.elapsed() << "more ms";
+                //Check if a chunked transfer is complete
+                if(validChunkedData(resp))
+                {
+                    qDebug() << "----------Chunked Transfer Complete----------";
                     emit fastWriteReadResponse(resp);
                     mutex.unlock();
                     return resp;
                 }
 
-                //Check for timeout, if not wait and then continue reading
-                if(newData.length() > 0) {
-                    //Read some new data, reset retryCount continue
-                    retryCount = timeout;
-                } else {
-                    //No new data
-                    retryCount -= 1;
-                    this->delay(1);
-                }
-            }
-            emit fastWriteReadResponse(resp);
-            mutex.unlock();
-            return resp;
-        }
-        else {
-            //---------- UNKNOWN ----------
-            //Continue reading until timout expires
-            qDebug() <<  "Unknown response type (probably chunked)";
-                     stopWatch.restart();
-            //while(this->port->waitForReadyRead(timeout)) {
-            int previousReadCount = -1;
-            bool waitForMoreBytes = true;
-            while(waitForMoreBytes) {
-
-                //This is required on Mac for bytes to be readable.  Do not change.
-                #if defined(TARGET_OS_MAC)
-                    this->port->waitForReadyRead(0);
-                #else
-                    this->port->waitForReadyRead(1);
-                #endif
-                QByteArray newData = this->port->readAll();
-
-                resp.append(newData);
-
+                stopWatch.restart();
                 if(newData.length() == 0) {
                     if(previousReadCount == 0) {
                         waitForMoreBytes = false;
                     } else {
                         this->delay(timeout);
                     }
-                    previousReadCount = newData.length();
                 }
-                    qDebug() << "Read" << newData.length() << "more byte after" << stopWatch.elapsed() << "ms";
-                stopWatch.restart();
-                //resp.append(this->port->readAll());
+                previousReadCount = newData.length();
             }
             qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Unknown response read in" << stopWatch.elapsed() << "ms" << "Response:" << resp;
             emit fastWriteReadResponse(resp);
@@ -271,6 +239,7 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
     mutex.unlock();
     return resp;
 }
+
 
 //Returns the chunk size if the specified input is in valid chunk format or -1 otherwise
 int Serial::getChunkSize(QString data) {
@@ -467,4 +436,32 @@ bool Serial::softReset(){
     bool success = this->open(name, baudRate);
     emit softResetResponse(success);
     return success;
+}
+
+bool Serial::validChunkedData(QByteArray data) {
+
+    while(getChunkSize(data) >= 0)
+    {
+        int chunkSize = getChunkSize(data);
+        int startOfChunk = data.indexOf("\r\n") + 2;
+
+        //Return false if chunk is not complete
+        if(data.length() < startOfChunk + chunkSize + 2) {
+            qDebug() << "Incomplete Chunk";
+            return false;
+        }
+
+        //If chunk size is 0 and the chunk is complete we're at the end
+        if(chunkSize == 0)
+        {
+            qDebug() << "Found Valid End Of Chunked Transfer";
+            return true;
+        }
+
+        QByteArray chunk = data.mid(startOfChunk, chunkSize);
+        qDebug() << "Valid" << chunkSize << "Byte Chunk:" << chunk;
+        qDebug() << "Remaining Data" << data.mid(startOfChunk + chunkSize + 2).length() << "Bytes" << data.mid(startOfChunk + chunkSize + 2);
+        data = data.mid(startOfChunk + chunkSize + 2);
+    }
+    return false;
 }

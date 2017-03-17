@@ -44,6 +44,7 @@ public:
     bool setBaudRate(int baudRate);
     int flushInputBuffer();
     int getChunkSize(QString data);
+    bool validChunkedData(QByteArray data);
 
     static QList<QSerialPortInfo> getSerialPortInfo();
     static void delay(int ms);
