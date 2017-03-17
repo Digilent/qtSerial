@@ -127,8 +127,14 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
     stopWatch.start();
 
     //Clear incoming buffer before writing new command
-    this->port->waitForReadyRead(1);
-    qDebug() << "Flushed " << this->port->readAll().length() << "in" << stopWatch.elapsed() << "ms";
+    //This is required on Mac for bytes to be readable.  Do not change.
+    #if defined(TARGET_OS_MAC)
+        this->port->waitForReadyRead(0);
+    #else
+        this->port->waitForReadyRead(1);
+    #endif
+    QByteArray flushedData = this->port->readAll();
+    qDebug() << "Flushed " << flushedData.length() << "in" << stopWatch.elapsed() << "ms";
 
     //Write Command
     this->write(data);
