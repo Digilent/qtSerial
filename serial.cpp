@@ -127,12 +127,7 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
     stopWatch.start();
 
     //Clear incoming buffer before writing new command
-    //This is required on Mac for bytes to be readable.  Do not change.
-    #if defined(TARGET_OS_MAC)
-        this->port->waitForReadyRead(0);
-    #else
-        this->port->waitForReadyRead(1);
-    #endif
+
     QByteArray flushedData = this->port->readAll();
     qDebug() << "Flushed " << flushedData.length() << "in" << stopWatch.elapsed() << "ms";
 
@@ -229,7 +224,7 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
                     if(previousReadCount == 0) {
                         waitForMoreBytes = false;
                     } else {
-                        this->delay(timeout);
+                        this->port->waitForReadyRead(timeout);
                     }
                 }
                 previousReadCount = newData.length();
@@ -444,8 +439,7 @@ bool Serial::softReset(){
     return success;
 }
 
-bool Serial::validChunkedData(QByteArray data) {
-
+bool Serial::validChunkedData(QByteArray data) { 
     while(getChunkSize(data) >= 0)
     {
         int chunkSize = getChunkSize(data);
