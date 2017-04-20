@@ -191,44 +191,37 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
         }        
         else
         {
-            //---------- UNKNOWN ----------
-            //Continue reading until timout expires
-            qDebug() <<  "Unknown response type starting with" << resp;
+            //---------- OTHER - Assume Chunked----------
+
+            //Clear any leading, non-chunked data
+            while((resp.length()) > 0 && (!(resp[0] >= '0' && resp[0] < '9') && !(resp[0] >= 'A' && resp[0] < 'F')))
+            {
+                qDebug() << "Trimming " << resp[0] << " from start of response";
+                resp = resp.mid(1);
+            }
+
+            //Continue reading until timeout expires
             stopWatch.restart();
 
-            int previousReadCount = -1;
-            bool waitForMoreBytes = true;
-            while(waitForMoreBytes) {
-                //This is required on Mac for bytes to be readable.  Do not change.
-                #if defined(TARGET_OS_MAC)
-                    this->port->waitForReadyRead(0);
-                #else
-                    this->port->waitForReadyRead(1);
-                #endif
-                QByteArray newData = this->port->readAll();
-                qDebug() << "Read" << newData.length() << "more byte after" << stopWatch.elapsed() << "ms";
+            while(this->port->waitForReadyRead(timeout)) {
+                qDebug() << "waiting for timeout for" << stopWatch.elapsed() << "ms";
+                while(this->port->bytesAvailable() > 0) {
+                    char respByte = this->port->read(1)[0];
+                    resp.append(respByte);
 
-                resp.append(newData);
-
-                //Check if a chunked transfer is complete
-                if(validChunkedData(resp))
-                {
-                    qDebug() << "----------Chunked Transfer Complete----------";
-                    emit fastWriteReadResponse(resp);
-                    mutex.unlock();
-                    return resp;
-                }
-
-                stopWatch.restart();
-                if(newData.length() == 0) {
-                    if(previousReadCount == 0) {
-                        waitForMoreBytes = false;
-                    } else {
-                        this->port->waitForReadyRead(timeout);
+                     //Check if chunk is done
+                    if(respByte == '\n') {
+                        if(validChunkedData(resp))
+                        {
+                            qDebug() << "----------Chunked Transfer Complete----------";
+                            emit fastWriteReadResponse(resp);
+                            mutex.unlock();
+                            return resp;
+                        }
                     }
                 }
-                previousReadCount = newData.length();
             }
+
             qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Unknown response read in" << stopWatch.elapsed() << "ms" << "Response:" << resp;
             emit fastWriteReadResponse(resp);
             mutex.unlock();
@@ -348,6 +341,10 @@ QByteArray Serial::read() {
 //Close the serial port.
 void Serial::close() {
     qDebug() << "Serial::close()" << "thread: " << QThread::currentThread();
+
+    if(this->port != 0){
+        return;
+    }
 
     //Set the baud rate back to 9600 before closing to grease the wheels for Mac
     this->setBaudRate(9600);
