@@ -127,7 +127,7 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
     stopWatch.start();
 
     //Clear incoming buffer before writing new command
-
+    //TODO - waitForReadyRead?
     QByteArray flushedData = this->port->readAll();
     qDebug() << "Flushed " << flushedData.length() << "in" << stopWatch.elapsed() << "ms";
 
