@@ -127,7 +127,7 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
     stopWatch.start();
 
     //Clear incoming buffer before writing new command
-    //TODO - waitForReadyRead?
+
     QByteArray flushedData = this->port->readAll();
     qDebug() << "Flushed " << flushedData.length() << "in" << stopWatch.elapsed() << "ms";
 
@@ -188,7 +188,7 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
                     }
                 }
             }
-        }        
+        }
         else
         {
             //---------- OTHER - Assume Chunked----------
@@ -221,11 +221,6 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
                     }
                 }
             }
-
-            qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Unknown response read in" << stopWatch.elapsed() << "ms" << "Response:" << resp;
-            emit fastWriteReadResponse(resp);
-            mutex.unlock();
-            return resp;
         }
     }
     qDebug() << "Serial::fastWriteRead()" << "thread: " << QThread::currentThread() << "Timeout - Response:" << resp;
@@ -342,10 +337,6 @@ QByteArray Serial::read() {
 void Serial::close() {
     qDebug() << "Serial::close()" << "thread: " << QThread::currentThread();
 
-    if(this->port != 0){
-        return;
-    }
-
     //Set the baud rate back to 9600 before closing to grease the wheels for Mac
     this->setBaudRate(9600);
     if(port->isOpen()) {
@@ -436,7 +427,7 @@ bool Serial::softReset(){
     return success;
 }
 
-bool Serial::validChunkedData(QByteArray data) { 
+bool Serial::validChunkedData(QByteArray data) {
     while(getChunkSize(data) >= 0)
     {
         int chunkSize = getChunkSize(data);
