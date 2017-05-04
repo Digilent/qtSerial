@@ -193,8 +193,8 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
         {
             //---------- OTHER - Assume Chunked----------
 
-            //Clear any leading, non-chunked data
-            while((resp.length()) > 0 && (!(resp[0] >= '0' && resp[0] < '9') && !(resp[0] >= 'A' && resp[0] < 'F')))
+            //Clear any leading, non-chunked data           
+            while((resp.length()) > 0 && (!(resp[0] >= '0' && resp[0] <= '9') && !(resp[0] >= 'a' && resp[0] <= 'f') && !(resp[0] >= 'A' && resp[0] <= 'F')))
             {
                 qDebug() << "Trimming " << resp[0] << " from start of response";
                 resp = resp.mid(1);
