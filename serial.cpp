@@ -136,7 +136,7 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
 
     //Wait for resposne to start
     stopWatch.restart();
-    if(this->port->waitForReadyRead(delay)){
+    if(waitForBytesAvailable(1, timeout)){
         qDebug() << "Waited" << stopWatch.elapsed() << "ms for first byte";
        //Read first incoming data
         stopWatch.restart();
@@ -169,9 +169,9 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
             //Continue reading until timeout expires
             stopWatch.restart();
 
-            while(this->port->waitForReadyRead(timeout)) {
+            while(waitForBytesAvailable(1, timeout)) {
                 qDebug() << "waiting for timeout for" << stopWatch.elapsed() << "ms";
-                while(this->port->bytesAvailable() > 0) {
+                while(bytesAvailable() > 0) {
                     char respByte = this->port->read(1)[0];
                     resp.append(respByte);
 
@@ -193,7 +193,7 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
         {
             //---------- OTHER - Assume Chunked----------
 
-            //Clear any leading, non-chunked data           
+            //Clear any leading, non-chunked data
             while((resp.length()) > 0 && (!(resp[0] >= '0' && resp[0] <= '9') && !(resp[0] >= 'a' && resp[0] <= 'f') && !(resp[0] >= 'A' && resp[0] <= 'F')))
             {
                 qDebug() << "Trimming " << resp[0] << " from start of response";
@@ -203,9 +203,9 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
             //Continue reading until timeout expires
             stopWatch.restart();
 
-            while(this->port->waitForReadyRead(timeout)) {
+            while(waitForBytesAvailable(1, timeout)) {
                 qDebug() << "waiting for timeout for" << stopWatch.elapsed() << "ms";
-                while(this->port->bytesAvailable() > 0) {
+                while(bytesAvailable() > 0) {
                     char respByte = this->port->read(1)[0];
                     resp.append(respByte);
 
