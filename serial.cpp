@@ -136,7 +136,7 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
 
     //Wait for resposne to start
     stopWatch.restart();
-    if(waitForBytesAvailable(1, timeout)){
+    if(waitForBytesAvailable(1, delay)){
         qDebug() << "Waited" << stopWatch.elapsed() << "ms for first byte";
        //Read first incoming data
         stopWatch.restart();
@@ -269,15 +269,23 @@ int Serial::bytesAvailable() {
 
 //Wait for the specified number of bytes to be avialable or timeout.  Returns true if the specified number of bytes are available, false otherwise.
 bool Serial::waitForBytesAvailable(int numBytes, int timeout) {
-
-    QTime startTime = QTime::currentTime();
-    QTime doneTime = startTime.addMSecs(timeout);
-    while(QTime::currentTime() < doneTime) {
-        if(bytesAvailable() >= numBytes) {
-            return true;
+     #if defined(TARGET_OS_MAC)
+        QTime startTime = QTime::currentTime();
+        QTime doneTime = startTime.addMSecs(timeout);
+        while(QTime::currentTime() < doneTime) {
+            int count = bytesAvailable();
+            if(count < 0) {
+                //Error
+                return false;
+            }
+            else if(count >= numBytes) {
+                return true;
+            }
         }
-    }
-    return false;
+        return false;
+    #else
+        return this->port->waitForReadyRead(timeout);
+    #endif
 }
 
 /*
