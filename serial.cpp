@@ -100,12 +100,12 @@ QByteArray Serial::writeRead(QByteArray data, int delay, int timeout) {
     QByteArray resp;
 
     this->write(data);
-    if(this->port->waitForReadyRead(delay)){
+    if(waitForBytesAvailable(1, delay)){
        //Read first incoming data
         resp.append(this->port->readAll());
 
         //Continue reading until timout expires
-        while(this->port->waitForReadyRead(timeout)) {
+        while(waitForBytesAvailable(1, timeout)) {
             resp.append(this->port->readAll());
         }
         return resp;
@@ -171,7 +171,7 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
 
             while(waitForBytesAvailable(1, timeout)) {
                 qDebug() << "waiting for timeout for" << stopWatch.elapsed() << "ms";
-                while(bytesAvailable() > 0) {
+                while(this->port->bytesAvailable() > 0) {
                     char respByte = this->port->read(1)[0];
                     resp.append(respByte);
 
@@ -205,7 +205,7 @@ QByteArray Serial::fastWriteRead(QByteArray data, int delay, int timeout) {
 
             while(waitForBytesAvailable(1, timeout)) {
                 qDebug() << "waiting for timeout for" << stopWatch.elapsed() << "ms";
-                while(bytesAvailable() > 0) {
+                while(this->port->bytesAvailable() > 0) {
                     char respByte = this->port->read(1)[0];
                     resp.append(respByte);
 
@@ -269,23 +269,15 @@ int Serial::bytesAvailable() {
 
 //Wait for the specified number of bytes to be avialable or timeout.  Returns true if the specified number of bytes are available, false otherwise.
 bool Serial::waitForBytesAvailable(int numBytes, int timeout) {
-     #if defined(TARGET_OS_MAC)
-        QTime startTime = QTime::currentTime();
-        QTime doneTime = startTime.addMSecs(timeout);
-        while(QTime::currentTime() < doneTime) {
-            int count = bytesAvailable();
-            if(count < 0) {
-                //Error
-                return false;
-            }
-            else if(count >= numBytes) {
-                return true;
-            }
+
+    QTime startTime = QTime::currentTime();
+    QTime doneTime = startTime.addMSecs(timeout);
+    while(QTime::currentTime() < doneTime) {
+        if(bytesAvailable() >= numBytes) {
+            return true;
         }
-        return false;
-    #else
-        return this->port->waitForReadyRead(timeout);
-    #endif
+    }
+    return false;
 }
 
 /*
@@ -455,8 +447,8 @@ bool Serial::validChunkedData(QByteArray data) {
         }
 
         QByteArray chunk = data.mid(startOfChunk, chunkSize);
-        qDebug() << "Valid" << chunkSize << "Byte Chunk:" << chunk;
-        qDebug() << "Remaining Data" << data.mid(startOfChunk + chunkSize + 2).length() << "Bytes" << data.mid(startOfChunk + chunkSize + 2);
+        //qDebug() << "Valid" << chunkSize << "Byte Chunk:" << chunk;
+        //qDebug() << "Remaining Data" << data.mid(startOfChunk + chunkSize + 2).length() << "Bytes" << data.mid(startOfChunk + chunkSize + 2);
         data = data.mid(startOfChunk + chunkSize + 2);
     }
     return false;
